@@ -1,9 +1,9 @@
 import { defineConfig } from "@trigger.dev/sdk";
+import { prismaExtension } from "@trigger.dev/build/extensions/prisma";
 
 export default defineConfig({
-  // Replace with your project ref from https://cloud.trigger.dev
   project: "proj_xfqcihtfppqerccqkyai",
-  runtime : 'node',
+  runtime: "node",
   dirs: ["trigger"],
   maxDuration: 600,
   retries: {
@@ -15,5 +15,13 @@ export default defineConfig({
       maxTimeoutInMs: 10000,
       randomize: true,
     },
+  },
+  build: {
+    extensions: [
+      prismaExtension({
+        schema: "prisma/schema.prisma",
+        migrate: false,
+      }),
+    ],
   },
 });
