@@ -1,0 +1,23 @@
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+function Skeleton({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="skeleton"
+      className={cn(
+        "relative overflow-hidden rounded-md bg-subtle/60",
+        "after:absolute after:inset-0 after:bg-gradient-to-r after:from-transparent after:via-white/[0.04] after:to-transparent",
+        "after:animate-shimmer",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export { Skeleton }

@@ -1,23 +1,36 @@
-import { EditorHomeActions } from "./editor-home-actions";
+import { auth } from "@clerk/nextjs/server";
+
+import {
+  getOwnedProjects,
+  getSharedProjects,
+} from "@/lib/project-data";
+import { getIdentity } from "@/lib/project-access";
+import { EditorDashboard } from "@/components/editor/editor-dashboard";
 
 /**
- * Editor home page — server component.
+ * Editor home page (server component).
  *
- * Fetches project data server-side and passes it to the sidebar
- * (rendered by the layout). The interactive New Project button
- * is extracted into a small client component.
+ * Fetches owned and shared projects and resolves the current user.
+ * The data is passed to the client `EditorDashboard` for rendering —
+ * keeping server-only infra (Prisma auth) on the server.
  */
-export default function EditorPage() {
+export default async function EditorHomePage() {
+  const { userId } = await auth();
+  const identity = await getIdentity();
+
+  const [ownedProjects, sharedProjects] = await Promise.all([
+    getOwnedProjects(),
+    getSharedProjects(),
+  ]);
+
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-4">
-      <h1 className="text-center text-lg font-semibold text-copy-primary">
-        Create a project or open an existing one
-      </h1>
-      <p className="max-w-sm text-center text-sm text-copy-muted">
-        Start a new architecture workspace, or choose a project from the
-        sidebar.
-      </p>
-      <EditorHomeActions />
-    </div>
+    <EditorDashboard
+      ownedProjects={ownedProjects}
+      sharedProjects={sharedProjects}
+      currentUserName={
+        identity?.email?.split("@")[0] ?? identity?.userId ?? null
+      }
+      currentUserId={userId ?? ""}
+    />
   );
 }

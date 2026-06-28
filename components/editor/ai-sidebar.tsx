@@ -10,11 +10,13 @@ import {
   Download,
   Loader2,
   Eraser,
+  AlertCircle,
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useRealtimeRun } from "@trigger.dev/react-hooks";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,9 +38,10 @@ interface AiSidebarProps {
 }
 
 const STARTER_PROMPTS = [
-  "Design an e-commerce backend",
-  "Create a chat app architecture",
-  "Build a CI/CD pipeline",
+  { label: "E-commerce backend", icon: "🛒" },
+  { label: "Chat app architecture", icon: "💬" },
+  { label: "CI/CD pipeline", icon: "🚀" },
+  { label: "Real-time analytics", icon: "📊" },
 ] as const;
 
 function formatTime(ts: number) {
@@ -50,7 +53,6 @@ function formatTime(ts: number) {
 
 /**
  * Subscribes to a Trigger.dev run via useRealtimeRun.
- * Only renders when a valid accessToken is provided.
  * Reports status changes back to the parent via callbacks.
  */
 function RunStatusTracker({
@@ -91,9 +93,7 @@ function RunStatusTracker({
 /**
  * Floating AI sidebar with AI Architect (chat) and Specs tabs.
  *
- * Slides in from the right side. The open/close state is controlled
- * by the parent via `isOpen` / `onClose`. Sends prompts to the AI
- * design agent API and subscribes to the shared AI status feed.
+ * Slides in from the right. Backdrop closes on click outside.
  */
 export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps) {
   const [inputValue, setInputValue] = useState("");
@@ -108,13 +108,19 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
   const [specPublicToken, setSpecPublicToken] = useState<string | null>(null);
   const [isGeneratingSpec, setIsGeneratingSpec] = useState(false);
   const { user } = useUser();
-  const { feedMessage, chatMessages, sendChatMessage, sendAssistantMessage, clearChatMessages, chatLoading } = useChatFeed();
+  const {
+    feedMessage,
+    chatMessages,
+    sendChatMessage,
+    sendAssistantMessage,
+    clearChatMessages,
+    chatLoading,
+  } = useChatFeed();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const isGenerating = isSubmitting || (runId !== null && publicToken !== null);
   const isBusy = isGenerating || chatLoading;
 
-  // Fetch specs for the current project
   const fetchSpecs = useCallback(async () => {
     setSpecsLoading(true);
     try {
@@ -130,7 +136,6 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
     }
   }, [projectId]);
 
-  // Fetch specs when the sidebar opens
   useEffect(() => {
     if (isOpen) {
       fetchSpecs();
@@ -177,7 +182,9 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
         throw new Error(err.error || "Failed to start spec generation");
       }
 
-      const { data: { runId: newRunId } } = await specRes.json();
+      const {
+        data: { runId: newRunId },
+      } = await specRes.json();
 
       const tokenRes = await fetch("/api/ai/spec/token", {
         method: "POST",
@@ -189,7 +196,9 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
         throw new Error("Failed to get access token");
       }
 
-      const { data: { token } } = await tokenRes.json();
+      const {
+        data: { token },
+      } = await tokenRes.json();
 
       setSpecRunId(newRunId);
       setSpecPublicToken(token);
@@ -241,9 +250,10 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
     }
   }, [chatMessages]);
 
-  // Callbacks for RunStatusTracker
   const handleRunCompleted = useCallback(() => {
-    sendAssistantMessage("Design generated successfully. Check the canvas for updates.");
+    sendAssistantMessage(
+      "Design generated successfully. Check the canvas for updates."
+    );
     setTimeout(() => {
       setRunId(null);
       setPublicToken(null);
@@ -266,27 +276,11 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
     }, 1500);
   }, [sendAssistantMessage]);
 
-  const handleRunError = useCallback((err: Error) => {
+  const handleRunError = useCallback((_err: Error) => {
     setSendError("Connection lost. Please try again.");
     setRunId(null);
     setPublicToken(null);
   }, []);
-
-  const handleSendChat = useCallback(
-    async (content: string) => {
-      if (!content.trim() || isBusy) return;
-
-      const senderName = user?.fullName ?? user?.username ?? "Anonymous";
-      setInputValue("");
-      setSendError(null);
-
-      const ok = await sendChatMessage(content.trim(), senderName);
-      if (!ok) {
-        setSendError("Failed to send message. Try again.");
-      }
-    },
-    [user, sendChatMessage, isBusy]
-  );
 
   const handleDesignSubmit = useCallback(
     async (prompt: string) => {
@@ -298,10 +292,8 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       setIsSubmitting(true);
 
       try {
-        // Send user message to chat
         await sendChatMessage(prompt, senderName);
 
-        // Call design API
         const designRes = await fetch("/api/ai/design", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -313,9 +305,10 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
           throw new Error(err.error || "Failed to start design generation");
         }
 
-        const { data: { runId: newRunId } } = await designRes.json();
+        const {
+          data: { runId: newRunId },
+        } = await designRes.json();
 
-        // Get public token for realtime tracking
         const tokenRes = await fetch("/api/ai/design/token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -326,7 +319,9 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
           throw new Error("Failed to get access token");
         }
 
-        const { data: { token } } = await tokenRes.json();
+        const {
+          data: { token },
+        } = await tokenRes.json();
 
         setRunId(newRunId);
         setPublicToken(token);
@@ -355,10 +350,10 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
   return (
     <aside
       className={cn(
-        "fixed right-0 top-0 z-50 flex h-full w-72 flex-col",
-        "border-l border-border-default bg-base/95 shadow-lg backdrop-blur-sm",
-        "transition-transform duration-200 ease-in-out",
-        isOpen ? "translate-x-0" : "translate-x-full",
+        "fixed right-0 top-0 z-50 flex h-full w-[340px] flex-col",
+        "border-l border-border-default/60 bg-elevated/95 shadow-2xl shadow-black/40 backdrop-blur-xl",
+        "transition-transform duration-300 ease-out",
+        isOpen ? "translate-x-0" : "translate-x-full"
       )}
       aria-hidden={!isOpen}
     >
@@ -387,15 +382,21 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       )}
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between border-b border-border-default px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Bot className="h-5 w-5 text-ai" />
+      <div className="flex items-start justify-between border-b border-border-default/60 px-4 py-4">
+        <div className="flex items-center gap-3">
+          <span className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-ai/30 to-brand/30 ring-1 ring-white/10 shadow-md shadow-ai/20">
+            <Bot className="h-4 w-4 text-ai-text" />
+            <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
+              <span className="absolute inset-0 animate-ping rounded-full bg-ai opacity-60" />
+              <span className="relative h-2.5 w-2.5 rounded-full bg-ai" />
+            </span>
+          </span>
           <div>
-            <h2 className="text-sm font-semibold text-copy-primary">
-              AI Workspace
+            <h2 className="text-sm font-semibold tracking-tight text-copy-primary">
+              Ghost AI
             </h2>
-            <p className="text-xs text-copy-muted">
-              Collaborate with Ghost AI
+            <p className="text-[11px] text-copy-muted">
+              Architect &middot; live
             </p>
           </div>
         </div>
@@ -416,6 +417,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
             size="icon-sm"
             onClick={onClose}
             aria-label="Close AI sidebar"
+            className="text-copy-muted hover:text-copy-primary"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -423,30 +425,21 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       </div>
 
       {/* ── Tabs ── */}
-      <Tabs defaultValue="architect" className="flex flex-1 flex-col">
-        <div className="px-4 pb-2 pt-3">
-          <TabsList className="w-full bg-subtle">
-            <TabsTrigger
-              value="architect"
-              className={cn(
-                "flex-1",
-                "text-copy-muted",
-                "data-[state=active]:bg-accent data-[state=active]:text-accent-foreground",
-                "data-[state=active]:shadow-none",
-              )}
-            >
-              AI Architect
+      <Tabs defaultValue="architect" className="flex flex-1 flex-col overflow-hidden">
+        <div className="px-3 pt-3">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="architect">
+              <Bot className="h-3.5 w-3.5" />
+              Architect
             </TabsTrigger>
-            <TabsTrigger
-              value="specs"
-              className={cn(
-                "flex-1",
-                "text-copy-muted",
-                "data-[state=active]:bg-accent data-[state=active]:text-accent-foreground",
-                "data-[state=active]:shadow-none",
-              )}
-            >
+            <TabsTrigger value="specs">
+              <FileText className="h-3.5 w-3.5" />
               Specs
+              {specs.length > 0 && (
+                <Badge variant="ghost" size="sm" className="ml-1 text-[9px]">
+                  {specs.length}
+                </Badge>
+              )}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -454,36 +447,51 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
         {/* ── AI Architect tab ── */}
         <TabsContent
           value="architect"
-          className="flex flex-1 flex-col p-0 m-0"
+          className="flex flex-1 flex-col overflow-hidden p-0 m-0"
         >
           {/* Chat area */}
-          <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-3">
             {/* Chat messages */}
             {chatMessages.map((msg, i) => (
               <div
                 key={`${msg.timestamp}-${i}`}
                 className={cn(
-                  "mt-3 rounded-lg px-3 py-2",
+                  "mt-3 flex flex-col gap-1 rounded-xl border px-3 py-2.5",
                   msg.role === "user"
-                    ? "ml-6 bg-green/15 border border-green/30"
-                    : "mr-6 bg-elevated border border-border-default"
+                    ? "ml-6 border-green/20 bg-green-dim/60"
+                    : msg.role === "assistant"
+                      ? "mr-6 border-ai/20 bg-ai-dim/50"
+                      : "mr-6 border-border-default bg-subtle/60"
                 )}
               >
-                <div className="mb-1 flex items-center justify-between">
-                  <span className={cn(
-                    "text-xs font-medium",
-                    msg.role === "user" ? "text-green" : "text-copy-primary"
-                  )}>
+                <div className="mb-0.5 flex items-center justify-between gap-2">
+                  <span
+                    className={cn(
+                      "flex items-center gap-1 text-xs font-medium",
+                      msg.role === "user"
+                        ? "text-green"
+                        : msg.role === "assistant"
+                          ? "text-ai-text"
+                          : "text-copy-primary"
+                    )}
+                  >
+                    {msg.role === "assistant" && (
+                      <Bot className="h-3 w-3" />
+                    )}
                     {msg.sender}
                   </span>
                   <span className="text-[10px] text-copy-faint">
                     {formatTime(msg.timestamp)}
                   </span>
                 </div>
-                <p className={cn(
-                  "text-xs leading-relaxed",
-                  msg.role === "user" ? "text-green/90" : "text-copy-secondary"
-                )}>
+                <p
+                  className={cn(
+                    "text-xs leading-relaxed",
+                    msg.role === "user"
+                      ? "text-green/95"
+                      : "text-copy-secondary"
+                  )}
+                >
                   {msg.content}
                 </p>
               </div>
@@ -491,46 +499,61 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
 
             {/* Send error */}
             {sendError && (
-              <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2">
-                <p className="text-xs text-red-400">{sendError}</p>
+              <div className="mt-3 flex items-start gap-2 rounded-xl border border-error/30 bg-error-dim px-3 py-2.5">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-error" />
+                <p className="text-xs leading-relaxed text-error">{sendError}</p>
               </div>
             )}
 
-            {/* Empty state — only when no status and no messages */}
+            {/* Empty state */}
             {!feedMessage && !isGenerating && chatMessages.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Bot className="mb-3 h-10 w-10 text-ai" />
-                <p className="mb-1 text-sm font-medium text-copy-primary">
-                  Ghost AI Architect
-                </p>
-                <p className="mb-6 text-xs text-copy-muted">
-                  Describe your architecture or start with a suggestion below.
-                </p>
-                <div className="flex flex-col gap-2">
+              <div className="flex flex-col items-center justify-center gap-4 px-2 py-10 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-ai/30 to-brand/30 ring-1 ring-white/10 shadow-lg shadow-ai/20">
+                  <Bot className="h-6 w-6 text-ai-text" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold tracking-tight text-copy-primary">
+                    Describe your system
+                  </p>
+                  <p className="text-xs leading-relaxed text-copy-muted">
+                    Ghost AI will draft the architecture directly on the
+                    canvas. Try a starter prompt below.
+                  </p>
+                </div>
+                <div className="grid w-full grid-cols-1 gap-2 pt-1">
                   {STARTER_PROMPTS.map((prompt) => (
                     <button
-                      key={prompt}
+                      key={prompt.label}
                       type="button"
                       disabled={isBusy}
-                      className="rounded-full bg-subtle px-4 py-1.5 text-xs text-ai-text transition-colors hover:bg-subtle/80 disabled:opacity-50"
-                      onClick={() => handleDesignSubmit(prompt)}
+                      onClick={() => handleDesignSubmit(prompt.label)}
+                      className={cn(
+                        "group flex items-center gap-3 rounded-xl border border-border-default bg-elevated px-3 py-2 text-left text-xs font-medium text-copy-secondary transition-all duration-200",
+                        "hover:-translate-y-0.5 hover:border-brand/40 hover:bg-elevated hover:text-copy-primary hover:shadow-md hover:shadow-brand/10",
+                        "disabled:cursor-not-allowed disabled:opacity-50"
+                      )}
                     >
-                      {prompt}
+                      <span className="text-base">{prompt.icon}</span>
+                      <span className="flex-1">{prompt.label}</span>
+                      <span className="text-copy-faint opacity-0 transition-opacity group-hover:opacity-100">→</span>
                     </button>
                   ))}
                 </div>
               </div>
             )}
-          </ScrollArea>
+          </div>
 
           {/* Input area */}
-          <div className="border-t border-border-default p-4">
+          <div className="border-t border-border-default/60 p-3">
             {/* Status strip — compact bar above input, only during active runs */}
             {isGenerating && feedMessage && (
-              <div className="mb-3 flex items-center gap-2 rounded-lg border border-green/20 bg-surface px-3 py-2">
-                <div className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-green" />
-                <span className="text-xs text-copy-muted">
-                  {feedMessage.text ?? "AI is working..."}
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-ai/30 bg-ai-dim/40 px-3 py-2">
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="absolute inset-0 animate-ping rounded-full bg-ai opacity-70" />
+                  <span className="relative h-2 w-2 rounded-full bg-ai" />
+                </span>
+                <span className="text-[11px] leading-relaxed text-copy-secondary">
+                  {feedMessage.text ?? "AI is working…"}
                 </span>
               </div>
             )}
@@ -540,80 +563,111 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask Ghost AI…"
+                placeholder="Describe your architecture…"
                 disabled={isBusy}
-                className="min-h-18 max-h-40 resize-none pr-10 text-sm"
+                className="min-h-12 max-h-40 resize-none pr-12 text-sm"
               />
               <Button
                 size="icon-sm"
                 onClick={handleSubmit}
                 disabled={!inputValue.trim() || isBusy}
-                className="absolute right-2 bottom-2 bg-green text-white hover:bg-green/80"
+                className="absolute right-2 bottom-2 bg-gradient-to-br from-brand to-ai text-white shadow-lg shadow-brand/30 hover:shadow-brand/50"
                 aria-label="Send message"
               >
                 {isBusy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <Send className="h-4 w-4" />
+                  <Send className="h-3.5 w-3.5" />
                 )}
               </Button>
             </div>
+            <p className="mt-1.5 px-1 text-[10px] text-copy-faint">
+              Press <kbd className="rounded border border-border-default bg-elevated px-1 font-mono">Enter</kbd>{" "}
+              to send, <kbd className="rounded border border-border-default bg-elevated px-1 font-mono">Shift+Enter</kbd> for newline.
+            </p>
           </div>
         </TabsContent>
 
         {/* ── Specs tab ── */}
         <TabsContent
           value="specs"
-          className="flex flex-1 flex-col p-0 m-0"
+          className="flex flex-1 flex-col overflow-hidden p-0 m-0"
         >
-          <div className="px-4 pt-4">
+          <div className="border-b border-border-default/60 px-4 py-3">
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold tracking-tight text-copy-primary">
+                  Technical specs
+                </h3>
+                <p className="text-[11px] text-copy-muted">
+                  Generated from the current canvas.
+                </p>
+              </div>
+              <Badge variant="ai" size="sm">
+                <Sparkles className="h-3 w-3" />
+                AI
+              </Badge>
+            </div>
             <Button
               onClick={handleGenerateSpec}
               disabled={isGeneratingSpec}
-              className="w-full bg-brand text-white hover:bg-brand/80"
+              className="group w-full gap-2 shadow-md shadow-brand/15"
             >
               {isGeneratingSpec ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating…
+                </>
               ) : (
-                <Sparkles className="h-4 w-4" />
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Generate spec
+                  <span className="ml-auto text-[10px] opacity-60">⌘S</span>
+                </>
               )}
-              {isGeneratingSpec ? "Generating…" : "Generate Spec"}
             </Button>
           </div>
 
-          <ScrollArea className="flex-1 px-4">
-            <div className="flex flex-col gap-3 py-4">
+          <div className="flex-1 overflow-y-auto px-3">
+            <div className="flex flex-col gap-2 py-3">
               {specsLoading && (
-                <div className="flex items-center justify-center py-8">
+                <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-5 w-5 animate-spin text-ai" />
                 </div>
               )}
 
               {!specsLoading && specs.length === 0 && !isGeneratingSpec && (
-                <div className="flex flex-col items-center gap-3 py-8 text-center">
-                  <FileText className="h-8 w-8 text-copy-faint" />
-                  <p className="text-xs text-copy-muted">
-                    No specs generated yet
-                  </p>
-                  <p className="text-[10px] text-copy-faint">
-                    Click Generate Spec to create one
-                  </p>
+                <div className="flex flex-col items-center gap-3 py-10 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-subtle/60 ring-1 ring-border-default">
+                    <FileText className="h-5 w-5 text-copy-faint" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-medium text-copy-primary">
+                      No specs yet
+                    </p>
+                    <p className="text-[11px] text-copy-muted">
+                      Click <span className="text-brand">Generate spec</span>{" "}
+                      above to create one from your canvas.
+                    </p>
+                  </div>
                 </div>
               )}
 
               {specs.map((spec) => (
                 <div
                   key={spec.id}
-                  className="group rounded-lg border border-border-default bg-elevated p-3 transition-colors hover:border-ai/30"
+                  className="group rounded-xl border border-border-default bg-elevated/60 p-3 transition-all hover:-translate-y-0.5 hover:border-ai/30 hover:bg-elevated hover:shadow-md hover:shadow-ai/5"
                 >
                   <button
                     type="button"
                     onClick={() => setPreviewSpecId(spec.id)}
-                    className="flex w-full items-start gap-2 text-left"
+                    className="flex w-full items-start gap-3 text-left"
                   >
-                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-ai" />
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ai-dim/50 text-ai-text ring-1 ring-ai/20">
+                      <FileText className="h-4 w-4" />
+                    </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-copy-primary truncate">
+                      <p className="truncate text-sm font-medium text-copy-primary">
                         Technical Specification
                       </p>
                       <p className="text-[10px] text-copy-faint">
@@ -626,7 +680,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDownloadSpec(spec.id)}
-                      className="h-7 text-copy-muted hover:text-copy-primary"
+                      className="h-7 gap-1.5 px-2 text-[11px] text-copy-muted hover:text-copy-primary"
                     >
                       <Download className="h-3 w-3" />
                       Download
@@ -635,7 +689,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                 </div>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         </TabsContent>
       </Tabs>
 
