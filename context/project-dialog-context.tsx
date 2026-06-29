@@ -84,6 +84,7 @@ export function ProjectDialogProvider({
                 Project Name
               </label>
               <Input
+                className="text-white"
                 id="project-name"
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
