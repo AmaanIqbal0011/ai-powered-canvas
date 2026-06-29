@@ -1,5 +1,5 @@
 import { task } from "@trigger.dev/sdk";
-import { google } from "@ai-sdk/google";
+import { groq } from "@ai-sdk/groq";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { liveblocks } from "@/lib/liveblocks";
@@ -275,9 +275,9 @@ export const designAgent = task({
         phase: "generating",
       });
 
-      // ── 2. Generate design with Gemini ─────────────────────────────
+      // ── 2. Generate design with Groq ──────────────────────────────
       const { output: design } = await generateText({
-        model: google("gemini-2.5-flash"),
+        model: groq("llama-3.3-70b-versatile"),
         output: Output.object({ schema: DesignSchema }),
         system: [
           "You are a system architecture designer. Generate canvas actions to create or modify a system design based on the user's prompt.",
@@ -364,7 +364,7 @@ export const designAgent = task({
       if (actionCounts.delete_edge) parts.push(`${actionCounts.delete_edge} edge deletion(s)`);
 
       console.log(
-        `[design-agent] Gemini returned ${design.actions.length} actions: ${parts.join(", ")}`
+        `[design-agent] Groq returned ${design.actions.length} actions: ${parts.join(", ")}`
       );
 
       await broadcastStatus(

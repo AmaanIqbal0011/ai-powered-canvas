@@ -193,20 +193,20 @@ Update this file whenever the current phase, active feature, or implementation s
 - `runId` on TaskRun is `@unique` (not the primary key `id`) because it's the Trigger.dev run identifier used for lookups and token scoping — the `cuid` `id` is an internal PK
 - Compound index on `(userId, projectId)` supports both user-scoped lookups (token route verification) and project-scoped queries (future listing of runs for a project)
 - Design task (`trigger/design-agent.ts`) is triggered via `designAgent.trigger()` imported directly from the task file, using the Trigger.dev SDK v4 pattern (not `tasks.trigger()` string-based lookup)
-- Design agent uses a discriminated union schema with 7 action types rather than a flat node/edge output, enabling Gemini to perform additive (add node/edge), modifying (move/resize/update), and destructive (delete node/edge) canvas operations in a single generation pass
-- Actions are processed sequentially in the order Gemini produces them — adds come before moves/resizes/updates, deletes come last — to avoid referencing nodes that haven't been created yet or trying to modify deleted nodes
-- Existing canvas state is read via `liveblocks.getStorageDocument` and serialized as a JSON summary in the AI prompt, allowing Gemini to make informed decisions about where to place new nodes relative to existing ones and which nodes to modify
+- Design agent uses a discriminated union schema with 7 action types rather than a flat node/edge output, enabling Groq to perform additive (add node/edge), modifying (move/resize/update), and destructive (delete node/edge) canvas operations in a single generation pass
+- Actions are processed sequentially in the order Groq produces them — adds come before moves/resizes/updates, deletes come last — to avoid referencing nodes that haven't been created yet or trying to modify deleted nodes
+- Existing canvas state is read via `liveblocks.getStorageDocument` and serialized as a JSON summary in the AI prompt, allowing Groq to make informed decisions about where to place new nodes relative to existing ones and which nodes to modify
 - Canvas mutations for the AI agent go through `liveblocks.mutateStorage` (server-side SDK), not client-side `useMutation` — the background task runs outside the browser and uses the Liveblocks Node SDK directly
 - AI spec generation resolves project from `roomId` server-side rather than trusting a client-supplied `projectId` — `roomId` IS the project ID in this system (the workspace route uses `params.roomId` to look up the project directly)
 - Spec generation task receives raw canvas nodes/edges arrays (not Liveblocks storage) — the client passes the current canvas state at submit time, keeping the task stateless with respect to Liveblocks
-- Spec task uses Gemini `gemini-2.5-flash` via `@ai-sdk/google` with `generateText` (plain text output, not structured Output.object) since the output is Markdown prose, not structured data
+- Spec task uses Groq `llama-3.3-70b-versatile` via `@ai-sdk/groq` with `generateText` (plain text output, not structured Output.object) since the output is Markdown prose, not structured data
 - Spec task posts status to the same `ai-status-feed` feed as the design agent, reusing the existing feed infrastructure and `AiThinkingIndicator` on the client
 - Spec token route follows the identical pattern as the design token route — ownership verified via `TaskRun` lookup, token scoped to single run with 1h expiration
 - `ProjectSpec` model stores only metadata (id, projectId, filePath, createdAt) — the actual Markdown content lives in Vercel Blob at `specs/{projectId}/{specId}.md`, matching the canvas persistence pattern where `canvasJsonPath` stores the blob URL reference
 - Download route uses `getIdentity` + `canAccessProject` from `lib/project-access.ts` for access control, then verifies the spec's `projectId` matches the route parameter to prevent cross-project access
 - Spec upload in the task uses `access: "private"` with `addRandomSuffix: true` — same pattern as canvas blob storage, ensuring no public URL leakage
 - Spec content is fetched through a dedicated API endpoint (`/content`), not accessed directly from Vercel Blob URLs in the client — maintains access control at every layer
-- Markdown preview uses a lightweight custom renderer (regex-based) instead of a full Markdown library — keeps the bundle small for the simple spec format produced by Gemini
+- Markdown preview uses a lightweight custom renderer (regex-based) instead of a full Markdown library — keeps the bundle small for the simple spec format produced by Groq
 - Spec list fetches on sidebar open via `useEffect` dependency on `isOpen` — lightweight query that stays fresh without polling
 - Download uses an anchor element click pattern (`document.createElement("a")`) to trigger browser-native file download without storing content in frontend state
 - Feed message payload is validated with a Zod schema (`AiStatusFeedMessageSchema`) on the client before display — prevents malformed or tampered messages from rendering in the sidebar

@@ -1,5 +1,5 @@
 import { task } from "@trigger.dev/sdk";
-import { google } from "@ai-sdk/google";
+import { groq } from "@ai-sdk/groq";
 import { generateText } from "ai";
 import { z } from "zod";
 import { put } from "@vercel/blob";
@@ -132,9 +132,9 @@ export const generateSpec = task({
         phase: "generating",
       });
 
-      // ── 2. Generate Markdown spec with Gemini ──────────────────────
+      // ── 2. Generate Markdown spec with Groq ───────────────────────
       const { text: specContent } = await generateText({
-        model: google("gemini-2.5-flash"),
+        model: groq("llama-3.3-70b-versatile"),
         system: [
           "You are a senior software architect writing a technical specification.",
           "Given a system design diagram (nodes and edges) and conversation context,",
