@@ -1,6 +1,6 @@
 import { task } from "@trigger.dev/sdk";
 import { groq } from "@ai-sdk/groq";
-import { generateText, Output } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import { liveblocks } from "@/lib/liveblocks";
 import { LiveObject } from "@liveblocks/core";
@@ -276,11 +276,34 @@ export const designAgent = task({
       });
 
       // ── 2. Generate design with Groq ──────────────────────────────
-      const { output: design } = await generateText({
+      const { text: rawOutput } = await generateText({
         model: groq("llama-3.3-70b-versatile"),
-        output: Output.object({ schema: DesignSchema }),
         system: [
           "You are a system architecture designer. Generate canvas actions to create or modify a system design based on the user's prompt.",
+          "",
+          "You MUST respond with a valid JSON object (no markdown, no code fences) matching this schema:",
+          JSON.stringify({
+            type: "object",
+            properties: {
+              actions: {
+                type: "array",
+                minItems: 1,
+                maxItems: 40,
+                items: {
+                  oneOf: [
+                    { type: "object", properties: { action: { type: "string", const: "add_node" }, id: { type: "string" }, label: { type: "string" }, shape: { type: "string", enum: ["rectangle","diamond","circle","pill","cylinder","hexagon"] }, colorIndex: { type: "number" }, x: { type: "number" }, y: { type: "number" }, width: { type: "number" }, height: { type: "number" } }, required: ["action","id","label","shape","colorIndex","x","y"] },
+                    { type: "object", properties: { action: { type: "string", const: "move_node" }, id: { type: "string" }, x: { type: "number" }, y: { type: "number" } }, required: ["action","id","x","y"] },
+                    { type: "object", properties: { action: { type: "string", const: "resize_node" }, id: { type: "string" }, width: { type: "number" }, height: { type: "number" } }, required: ["action","id","width","height"] },
+                    { type: "object", properties: { action: { type: "string", const: "update_node_data" }, id: { type: "string" }, label: { type: "string" }, colorIndex: { type: "number" } }, required: ["action","id"] },
+                    { type: "object", properties: { action: { type: "string", const: "delete_node" }, id: { type: "string" } }, required: ["action","id"] },
+                    { type: "object", properties: { action: { type: "string", const: "add_edge" }, id: { type: "string" }, source: { type: "string" }, target: { type: "string" }, label: { type: "string" } }, required: ["action","id","source","target"] },
+                    { type: "object", properties: { action: { type: "string", const: "delete_edge" }, id: { type: "string" } }, required: ["action","id"] },
+                  ],
+                },
+              },
+            },
+            required: ["actions"],
+          }),
           "",
           "## Available Actions",
           "- add_node: Create a new node with id, label, shape, colorIndex, x, y, optional width/height",
@@ -341,7 +364,14 @@ export const designAgent = task({
           .join("\n"),
       });
 
-      if (!design || !design.actions || design.actions.length === 0) {
+      // Parse JSON from text output
+      const jsonMatch = rawOutput.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("AI did not return valid JSON");
+      }
+      const design = DesignSchema.parse(JSON.parse(jsonMatch[0]));
+
+      if (!design.actions || design.actions.length === 0) {
         throw new Error("AI returned an empty design — no actions generated");
       }
 
